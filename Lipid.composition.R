@@ -1,6 +1,8 @@
+library(reshape2)
+
 FA<-    c("16_0","16_1","18_0","18_1","18_2","18_3","20_0","20_4","20_5","22_0","22_1","22_5","22_6","24_0","24_1","26_0","26_1")
-length<-c(16,     16,    18,    18,    18,    18,    20,    20,    20,    22,    22,    22,    22,    24,    24,    26,    26)
-db<-    c(0,      1,     0,     1,     2,     3,     0,     4,     5,     0,     1,     5,     6,     0,     1,     0,     1)
+length<-c( 16,    16,    18,    18,    18,    18,    20,    20,    20,    22,    22,    22,    22,    24,    24,    26,    26)
+db<-    c( 0,     1,     0,     1,     2,     3,     0,     4,     5,     0,     1,     5,     6,     0,     1,     0,     1)
 fattyAcids<-data.frame(FA=FA,length=length,db=db)
 
 headGroup<-c("PC","PE","PS","PI","OH","TG","Pi","Glu","Lac","Sulfatide")
@@ -142,3 +144,51 @@ lipidMatrix$headGroupSet<-headGroupSet
 lipidMatrix$lysoGroupSet<-lysoGroupSet
 lipidMatrix$vinylEtherGroupSet<-vinylEtherGroupSet
 lipidMatrix$etherGroupSet<-etherGroupSet
+
+glyceroFattyAcidMatrix<-t(lipidSet[1,,drop=F])%*%lipidSet[1,,drop=F]
+glyceroFattyAcidMatrix<-lower.tri(set,diag=T)
+colnames(glyceroFattyAcidMatrix)<-fattyAcids$FA
+rownames(glyceroFattyAcidMatrix)<-fattyAcids$FA
+
+############################# Need special function for TG ###################################
+######################### (O) and (P) modifications cannot be applied to lyso species currently.
+
+glyceroFattyAcidMatrix<-melt(glyceroFattyAcidMatrix)
+glyceroFattyAcidMatrix<-glyceroFattyAcidMatrix[glyceroFattyAcidMatrix$value==TRUE,]
+colnames(glyceroFattyAcidMatrix)<-c("SN2","SN1","headGroup")
+eval(parse(text=paste("glyceroLipidMatrix<-rbind(",paste(rep("glyceroFattyAcidMatrix",sum(headGroupSet[1,])),collapse=","),")",sep="")))
+glyceroLipidMatrix$headGroup<-rep(colnames(headGroupSet)[which(headGroupSet[1,]==1)],each=nrow(glyceroLipidMatrix)/sum(headGroupSet[1,]))
+glyceroLipidMatrix$SN3<-rep(NA,nrow(glyceroLipidMatrix))
+glyceroLipidMatrix$modification<-rep(NA,nrow(glyceroLipidMatrix))
+
+for(i in which(vinylEtherGroupSet[1,]==1)){
+  glyceroLipidMatrix<-rbind(glyceroLipidMatrix,data.frame(SN1=glyceroFattyAcidMatrix$SN1,SN2=glyceroFattyAcidMatrix$SN2,headGroup=rep(colnames(vinylEtherGroupSet)[i],nrow(glyceroFattyAcidMatrix)),SN3=rep(NA,nrow(glyceroFattyAcidMatrix)),modification=rep('(P)',nrow(glyceroFattyAcidMatrix))))
+}
+for(i in which(etherGroupSet[1,]==1)){
+  glyceroLipidMatrix<-rbind(glyceroLipidMatrix,data.frame(SN1=glyceroFattyAcidMatrix$SN1,SN2=glyceroFattyAcidMatrix$SN2,headGroup=rep(colnames(etherGroupSet)[i],nrow(glyceroFattyAcidMatrix)),SN3=rep(NA,nrow(glyceroFattyAcidMatrix)),modification=rep('(O)',nrow(glyceroFattyAcidMatrix))))
+}
+for(i in which(lysoGroupSet[1,]==1)){
+  glyceroLipidMatrix<-rbind(glyceroLipidMatrix,data.frame(SN1=fattyAcids$FA,SN2=rep(NA,nrow(fattyAcids)),headGroup=rep(colnames(lysoGroupSet)[i],nrow(fattyAcids)),SN3=rep(NA,nrow(fattyAcids)),modification=rep(NA,nrow(fattyAcids))))
+}
+
+
+printLipids<-function(X) {
+  if(!is.na(X$SN2)) {
+    if(is.na(X$modification)) {
+      print(paste(X$headGroup," ",X$SN1,"/",X$SN2,sep=""))
+    } else {
+      print(paste(X$headGroup,X$modification," ",X$SN1,"/",X$SN2,sep=""))
+    }
+  } else {
+    if(is.na(X$modification)) {
+      print(paste(X$headGroup," ",X$SN1,"/0_0",sep=""))
+    } else {
+      print(paste(X$headGroup,X$modification," ",X$SN1,"/0_0",sep=""))
+    }
+  }
+}
+printLipids(glyceroLipidMatrix[1100,])
+
+sphingoLipidMatrix<-t(lipidSet[2,,drop=F])%*%lipidSet[3,,drop=F]
+sphingoLipidMatrix<-melt(sphingoLipidMatrix)
+sphingoLipidMatrix<-sphingoLipidMatrix[which(sphingoLipidMatrix$value==1),]
