@@ -192,3 +192,188 @@ printLipids(glyceroLipidMatrix[1100,])
 sphingoLipidMatrix<-t(lipidSet[2,,drop=F])%*%lipidSet[3,,drop=F]
 sphingoLipidMatrix<-melt(sphingoLipidMatrix)
 sphingoLipidMatrix<-sphingoLipidMatrix[which(sphingoLipidMatrix$value==1),]
+
+
+library(R6)
+simLipid<-R6Class("Lipid",
+  private=list(
+    acylSN1="18_0",
+    acylSN2="18_1",
+    acylSN3=NA,
+    .headGroup="PC",
+    backBone="Glycerol",
+    modification=NA,
+    isVinylEther=FALSE,
+    isEther=FALSE,
+    isLyso=FALSE,
+    composition=c(1,0,0,1,0,0,0,0,0,0,0,0,18,0,18,1,0,0,0,0,1,1,0,1),
+    elements=NA,
+    isotopeDistribution=NA,
+    
+    generateComposition=function() {
+      private$composition<-numeric(24)
+      if(private$backBone=="Glycerol") {
+        private$composition[1:3]<-c(1,0,0)
+      } else if(private$backBone=="Cholesterol") {
+        private$composition[1:3]<-c(0,1,0)
+        if(!is.na(private$acylSN1)) {
+          private$.headGroup=NA
+        }
+        private$acylSN2<-NA
+        private$acylSN3<-NA
+      } else if(private$backBone=="Sphingoid") {
+        private$composition[1:3]<-c(0,0,1)
+        private$acylSN3<-NA
+      }
+      if(!is.na(private$.headGroup)) {
+        if(private$.headGroup=="PC") {
+          private$composition[4:12]<-c(1,0,0,0,0,0,0,0,0)
+          private$acylSN3<-NA
+        } else if(private$.headGroup=="PE") {
+          private$composition[4:12]<-c(0,1,0,0,0,0,0,0,0)
+          private$acylSN3<-NA
+        } else if(private$.headGroup=="PS") {
+          private$composition[4:12]<-c(0,0,1,0,0,0,0,0,0)
+          private$acylSN3<-NA
+        } else if(private$.headGroup=="PI") {
+          private$composition[4:12]<-c(0,0,0,1,0,0,0,0,0)
+          private$acylSN3<-NA
+        } else if(private$.headGroup=="OH") {
+          private$composition[4:12]<-c(0,0,0,0,1,0,0,0,0)
+          private$acylSN3<-NA
+        } else if(private$.headGroup=="Pi") {
+          private$composition[4:12]<-c(0,0,0,0,0,1,0,0,0)
+        } else if(private$.headGroup=="Glu") {
+          private$composition[4:12]<-c(0,0,0,0,0,0,1,0,0)
+          private$acylSN3<-NA
+        } else if(private$.headGroup=="Lac") {
+          private$composition[4:12]<-c(0,0,0,0,0,0,0,1,0)
+          private$acylSN3<-NA
+        } else if(private$.headGroup=="Sulfatide") {
+          private$composition[4:12]<-c(0,0,0,0,0,0,0,0,1)
+          private$acylSN3<-NA
+        } 
+      } else {
+        private$composition[4:12]<-c(0,0,0,0,0,0,0,0,0)
+      }
+      if(private$backBone=="Glycerol"||(private$backBone=="Cholesterol"&!is.na(private$acylSN1))) {
+        private$composition[13]<-fattyAcids$length[which(fattyAcids$FA==private$acylSN1)]
+        private$composition[14]<-fattyAcids$db[which(fattyAcids$FA==private$acylSN1)]
+        if(!is.na(private$acylSN2)) {
+          private$composition[15]<-fattyAcids$length[which(fattyAcids$FA==private$acylSN2)]
+          private$composition[16]<-fattyAcids$db[which(fattyAcids$FA==private$acylSN2)]
+        }
+        if(!is.na(private$acylSN3)) {
+          private$composition[17]<-fattyAcids$length[which(fattyAcids$FA==private$acylSN3)]
+          private$composition[18]<-fattyAcids$db[which(fattyAcids$FA==private$acylSN3)]
+        }
+      } else if(private$backBone=="Sphingoid") {
+        private$composition[13]<-fattyAcids$length[which(fattyAcids$FA==private$acylSN1)]
+        private$composition[14]<-fattyAcids$db[which(fattyAcids$FA==private$acylSN1)]
+        if(!is.na(acylSN2)) {
+          private$composition[15]<-fattyAcids$length[which(fattyAcids$FA==private$acylSN2)]
+          private$composition[16]<-fattyAcids$db[which(fattyAcids$FA==private$acylSN2)]
+        }
+      }
+      if(!is.na(private$modification)) {
+        if(private$modification=="(P)") {
+          private$composition[19:20]<-c(1,0)
+        } else if(private$modification=="(O)") {
+          private$composition[19:20]<-c(0,1)
+        }
+      }
+      if(!is.na(private$acylSN1)) {
+        private$composition[21]<-1
+      }
+      if(!is.na(private$acylSN2)) {
+        private$composition[22]<-1
+      }
+      if(!is.na(private$acylSN3)) {
+        private$composition[23]<-1
+      }
+      private$composition[24]<-1
+    },
+    getIsotopeDistribution=function(value) {
+      output.combined<-matrix(c(0,1),nrow=1,ncol=2)
+      for(p in 1:length(elements)) {
+        n<-value[p]
+        mass1<-natural.isotopic.abundance[p,2]
+        mass2<-natural.isotopic.abundance[p,3]
+        abundance<-natural.isotopic.abundance[p,4]
+        mass.dist<-matrix(0,nrow=n+1,ncol=2)
+        for(k in 0:n) {
+          mass.dist[k+1,1]<-mass1*k+(n-k)*mass2
+          mass.dist[k+1,2]<-dbinom(k,n,abundance)
+        }
+        mass.dist<-mass.dist[which(mass.dist[,2]>0.0001),,drop=FALSE]
+        eval(parse(text=paste("output.combined<-rbind(",paste(rep("output.combined",nrow(mass.dist)),collapse=","),")",sep="")))
+        output.combined[,1]<-output.combined[,1]+rep(mass.dist[,1],each=nrow(output.combined)/nrow(mass.dist))
+        output.combined[,2]<-output.combined[,2]*rep(mass.dist[,2],each=nrow(output.combined)/nrow(mass.dist))
+      }
+      output.combined<-output.combined[which(output.combined[,2]>0.0001),,drop=FALSE]
+      #output.combined[,2]<-output.combined[,2]*100/max(output.combined[,2])
+      output.combined<-output.combined[order(output.combined[,1]),]
+      private$isotopeDistribution<-output.combined
+    }
+  ),
+  public=list(
+    initialize=function(...) {
+      for(item in list(...)) {
+        print(item)
+      }
+    },
+    getIsotope=function() {
+      private$generateComposition()
+      private$elements<-private$composition%*%elementalCoef
+      private$getIsotopeDistribution(private$elements)
+      print(private$isotopeDistribution)
+      plot(private$isotopeDistribution,type="h")
+    }
+  ),
+  active=list(
+    SN1=function(value) {
+      if(missing(value)) {
+        private$acylSN1
+      } else if(value%in%fattyAcids$FA) {
+        private$acylSN1<-value
+      } else {
+        print("Fatty acid not recognized")
+      }
+    },
+    SN2=function(value) {
+      if(missing(value)) {
+        private$acylSN2
+      } else if(value%in%fattyAcids$FA) {
+        if(private$isLyso) {
+          print("Cannot set SN2 for lyso-lipid")
+        } else {
+          private$acylSN2<-value
+        }
+      } else {
+        print("Fatty acid not recognized")
+      }
+    },
+    SN3=function(value) {
+      if(missing(value)) {
+        private$acylSN3
+      } else if(value%in%fattyAcids$FA) {
+        if(private$.headGroup=="TG") {
+          private$acylSN3<-value
+        } else {
+          print("Cannot set SN3: Lipid is not a triacylglycerol")
+        }
+      } else {
+        print("Fatty acid not recognized")
+      }
+    },
+    headGroup=function(value) {
+      if(missing(value)) {
+        private$.headGroup
+      }
+    }
+  )
+)
+
+PC34_1<-simLipid$new()
+PC34_1$getIsotope()
+
