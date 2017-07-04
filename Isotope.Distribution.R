@@ -10,7 +10,7 @@
 elements<-c("C","H","N","O","P")
 mass1<-c(12,1.007825,14.003074,15.994915,30.973762)
 mass2<-c(13.003355,2.014102,15.000109,17.99916,30.973762)
-abundance<-c(0.9893,0.999885,0.99632,0.99757,1.0)
+abundance<-c(0.9894,0.999855,0.996205,0.99757,1.0)
 
 natural.isotopic.abundance<-data.frame(elements=elements,mass1=mass1,mass2=mass2,abundance=abundance)
 compound<-c(39,74,1,8,1)
